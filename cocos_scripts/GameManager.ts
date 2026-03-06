@@ -125,6 +125,24 @@ export class GameManager extends Component {
         this.updateUI();
     }
 
+    public retryCurrentLevel() {
+        // 重新挑战本关：生命值恢复，回到准备阶段
+        // 具体 UI 状态切换由 Cocos 场景管理
+        this.updateUI();
+    }
+
+    public restartGame() {
+        // 重新开始游戏：清空背包，重置金币和关卡
+        this.backpack = [];
+        this.gold = 50;
+        this.level = 0;
+        this.gridCols = 5;
+        this.gridRows = 5;
+        this.refreshShop(true);
+        this.updateGridVisuals();
+        this.updateUI();
+    }
+
     // --- UI Rendering (Cocos Specific) ---
 
     private updateUI() {

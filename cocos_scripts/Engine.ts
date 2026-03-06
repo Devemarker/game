@@ -64,6 +64,33 @@ export class Engine {
         return false;
     }
 
+    public static checkSynergyPotential(def: ItemDef, backpack: ItemInstance[]): 'positive' | 'negative' | 'none' {
+        let hasPositive = false;
+        let hasNegative = false;
+        
+        backpack.forEach(bpItem => {
+            const bpDef = ITEM_DEFS[bpItem.itemId];
+            
+            def.synergies.forEach(s => {
+                if (bpDef.tags.includes(s.targetTag)) {
+                    if (s.description.includes('-')) hasNegative = true;
+                    else hasPositive = true;
+                }
+            });
+            
+            bpDef.synergies.forEach(s => {
+                if (def.tags.includes(s.targetTag)) {
+                    if (s.description.includes('-')) hasNegative = true;
+                    else hasPositive = true;
+                }
+            });
+        });
+
+        if (hasNegative) return 'negative';
+        if (hasPositive) return 'positive';
+        return 'none';
+    }
+
     public static calculateStats(backpack: ItemInstance[]): { stats: PlayerStats, activeSynergies: string[], hasMagic: boolean } {
         const baseStats: PlayerStats = { attack: 5, defense: 0, maxHp: 100, critChance: 0 };
         const activeSynergies: string[] = [];
