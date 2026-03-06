@@ -969,20 +969,33 @@ export default function App() {
         {gameState === 'gameover' && (
           <div className="p-8 flex flex-col items-center justify-center bg-stone-900 text-stone-100 min-h-[400px]">
             <Skull size={64} className="text-red-500 mb-4" />
-            <h2 className="text-3xl font-bold mb-2">游戏结束</h2>
-            <p className="text-stone-400 mb-8">你到达了第 {level + 1} 关</p>
-            <button
-              onClick={() => {
-                setBackpack([]);
-                setGold(50);
-                setLevel(0);
-                refreshShop(true);
-                setGameState('planning');
-              }}
-              className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-colors"
-            >
-              再来一局
-            </button>
+            <h2 className="text-3xl font-bold mb-2">战斗失败</h2>
+            <p className="text-stone-400 mb-8">你倒在了第 {level + 1} 关</p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setPlayerHp(stats.maxHp);
+                  setGameState('planning');
+                }}
+                className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-colors"
+              >
+                重新挑战本关
+              </button>
+              <button
+                onClick={() => {
+                  setBackpack([]);
+                  setGold(50);
+                  setLevel(0);
+                  setGridCols(5);
+                  setGridRows(5);
+                  refreshShop(true);
+                  setGameState('planning');
+                }}
+                className="px-8 py-3 bg-stone-700 hover:bg-stone-600 text-white rounded-xl font-bold transition-colors"
+              >
+                重新开始游戏
+              </button>
+            </div>
           </div>
         )}
 
