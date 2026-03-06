@@ -11,8 +11,6 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const GRID_COLS = 5;
-const GRID_ROWS = 5;
 const CELL_SIZE = 48; // px
 const CELL_GAP = 4; // px
 const STEP = CELL_SIZE + CELL_GAP;
@@ -24,12 +22,31 @@ const BATTLE_BGS = [
   'https://picsum.photos/seed/dragon-volcano/800/400?blur=1',
 ];
 
-const checkSynergyPotential = (def: ItemDef, backpack: ItemInstance[]) => {
-  return backpack.some(bpItem => {
+const checkSynergyPotential = (def: ItemDef, backpack: ItemInstance[]): 'positive' | 'negative' | 'none' => {
+  let hasPositive = false;
+  let hasNegative = false;
+  
+  backpack.forEach(bpItem => {
     const bpDef = ITEM_DEFS[bpItem.itemId];
-    return def.synergies.some(s => bpDef.tags.includes(s.targetTag)) ||
-           bpDef.synergies.some(s => def.tags.includes(s.targetTag));
+    
+    def.synergies.forEach(s => {
+      if (bpDef.tags.includes(s.targetTag)) {
+        if (s.description.includes('-')) hasNegative = true;
+        else hasPositive = true;
+      }
+    });
+    
+    bpDef.synergies.forEach(s => {
+      if (def.tags.includes(s.targetTag)) {
+        if (s.description.includes('-')) hasNegative = true;
+        else hasPositive = true;
+      }
+    });
   });
+
+  if (hasNegative) return 'negative';
+  if (hasPositive) return 'positive';
+  return 'none';
 };
 
 type DragState = {
@@ -70,6 +87,21 @@ export default function App() {
   const [gold, setGold] = useState(50);
   const [level, setLevel] = useState(0);
   
+  const [gridCols, setGridCols] = useState(5);
+  const [gridRows, setGridRows] = useState(5);
+  const upgradeCost = (gridCols + gridRows - 9) * 20;
+
+  const handleUpgradeGrid = () => {
+    if (gold >= upgradeCost) {
+      setGold(g => g - upgradeCost);
+      if (gridCols === gridRows) {
+        setGridCols(c => c + 1);
+      } else {
+        setGridRows(r => r + 1);
+      }
+    }
+  };
+  
   const [dragState, setDragState] = useState<DragState>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   
@@ -82,6 +114,14 @@ export default function App() {
   const [hitTarget, setHitTarget] = useState<'player' | 'enemy' | null>(null);
   const [damagePopups, setDamagePopups] = useState<{id: number, value: number, target: 'player'|'enemy', isCrit?: boolean}[]>([]);
   const [spellActive, setSpellActive] = useState(false);
+  
+  const [battleSpeed, setBattleSpeed] = useState<1 | 2>(1);
+  const battleSpeedRef = useRef<1 | 2>(1);
+  const skipBattleRef = useRef(false);
+
+  useEffect(() => {
+    battleSpeedRef.current = battleSpeed;
+  }, [battleSpeed]);
 
   const { stats, activeSynergies, hasMagic } = useMemo(() => calculateStats(backpack), [backpack]);
 
@@ -94,14 +134,19 @@ export default function App() {
 
     const otherItems = backpack.filter(i => i.instanceId !== dragState.instanceId);
 
-    const getAdjacentCells = (item: ItemInstance, def: ItemDef) => {
+    const getHotspotCells = (item: ItemInstance, def: ItemDef, direction: 'adjacent' | 'global' | 'diagonal') => {
+      if (direction === 'global') return []; // Global doesn't need specific hotspots
       const occupied = getOccupiedCells(item, def);
       const adj = new Set<string>();
       occupied.forEach(cell => {
-        [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+        const offsets = direction === 'adjacent' 
+          ? [[0,1], [0,-1], [1,0], [-1,0]]
+          : [[1,1], [1,-1], [-1,1], [-1,-1]];
+          
+        offsets.forEach(([dx, dy]) => {
           const nx = cell.x + dx;
           const ny = cell.y + dy;
-          if (nx >= 0 && nx < GRID_COLS && ny >= 0 && ny < GRID_ROWS) {
+          if (nx >= 0 && nx < gridCols && ny >= 0 && ny < gridRows) {
             if (!occupied.some(c => c.x === nx && c.y === ny)) {
               adj.add(`${nx},${ny}`);
             }
@@ -116,13 +161,18 @@ export default function App() {
 
     otherItems.forEach(other => {
       const otherDef = ITEM_DEFS[other.itemId];
-      let isSynergy = false;
-      if (draggedDef.synergies.some(syn => otherDef.tags.includes(syn.targetTag))) isSynergy = true;
-      if (otherDef.synergies.some(syn => draggedDef.tags.includes(syn.targetTag))) isSynergy = true;
-
-      if (isSynergy) {
-        hotspots.push(...getAdjacentCells(other, otherDef));
-      }
+      
+      draggedDef.synergies.forEach(syn => {
+        if (otherDef.tags.includes(syn.targetTag)) {
+          hotspots.push(...getHotspotCells(other, otherDef, syn.direction));
+        }
+      });
+      
+      otherDef.synergies.forEach(syn => {
+        if (draggedDef.tags.includes(syn.targetTag)) {
+          hotspots.push(...getHotspotCells(other, otherDef, syn.direction));
+        }
+      });
     });
 
     const uniqueHotspots: {x: number, y: number}[] = [];
@@ -135,7 +185,7 @@ export default function App() {
       }
     });
     return uniqueHotspots;
-  }, [dragState, backpack, shop]);
+  }, [dragState, backpack, shop, gridCols, gridRows]);
 
   // Initialize shop
   useEffect(() => {
@@ -211,7 +261,7 @@ export default function App() {
       let previewY = gridY;
       
       // Check bounds
-      if (gridX >= 0 && gridX + shapeWidth <= GRID_COLS && gridY >= 0 && gridY + shapeHeight <= GRID_ROWS) {
+      if (gridX >= 0 && gridX + shapeWidth <= gridCols && gridY >= 0 && gridY + shapeHeight <= gridRows) {
         // Check overlap
         const testItem = { ...item, x: gridX, y: gridY };
         const testCells = getOccupiedCells(testItem, def);
@@ -331,6 +381,7 @@ export default function App() {
 
   const startBattle = async () => {
     if (backpack.length === 0) return;
+    skipBattleRef.current = false;
     const enemy = { ...ENEMIES[Math.min(level, ENEMIES.length - 1)] };
     setCurrentEnemy(enemy);
     setPlayerHp(stats.maxHp);
@@ -349,19 +400,52 @@ export default function App() {
       setBattleLog([...logs]);
     };
 
-    await sleep(1000);
+    const customSleep = async (ms: number) => {
+      if (skipBattleRef.current) return;
+      await new Promise(resolve => setTimeout(resolve, ms / battleSpeedRef.current));
+    };
+
+    await customSleep(1000);
     
     while (currentEnemyHp > 0 && currentPlayerHp > 0) {
+      if (skipBattleRef.current) {
+        // Fast resolve loop without animations
+        while (currentEnemyHp > 0 && currentPlayerHp > 0) {
+          // Player attacks
+          const pBaseDamage = Math.max(1, stats.attack - enemy.defense);
+          let pDamage = Math.floor(pBaseDamage * (0.6 + Math.random() * 0.4));
+          let isCrit = false;
+          if (Math.random() < stats.critChance) {
+            isCrit = true;
+            pDamage *= 2;
+          }
+          currentEnemyHp -= pDamage;
+          addLog(`你对 ${enemy.name} 造成了 ${pDamage} 点伤害！${isCrit ? '(暴击!)' : ''}`);
+          
+          if (currentEnemyHp <= 0) break;
+
+          // Enemy attacks
+          const eBaseDamage = Math.max(1, enemy.attack - stats.defense);
+          const eDamage = Math.floor(eBaseDamage * (0.6 + Math.random() * 0.4));
+          currentPlayerHp -= eDamage;
+          addLog(`${enemy.name} 对你造成了 ${eDamage} 点伤害！`);
+        }
+        
+        setCurrentEnemy(prev => prev ? { ...prev, hp: currentEnemyHp } : null);
+        setPlayerHp(currentPlayerHp);
+        break; // Exit outer animated loop
+      }
+
       // Player attacks
       if (hasMagic) {
         setAttacking('player_magic');
-        await sleep(150);
+        await customSleep(150);
         setSpellActive(true);
-        await sleep(250);
+        await customSleep(250);
         setSpellActive(false);
       } else {
         setAttacking('player');
-        await sleep(150);
+        await customSleep(150);
       }
       
       const pBaseDamage = Math.max(1, stats.attack - enemy.defense);
@@ -379,27 +463,20 @@ export default function App() {
       addLog(`你对 ${enemy.name} 造成了 ${pDamage} 点伤害！${isCrit ? '(暴击!)' : ''}`);
       setCurrentEnemy(prev => prev ? { ...prev, hp: currentEnemyHp } : null);
       
-      await sleep(150);
+      await customSleep(150);
       setAttacking(null);
-      await sleep(200);
+      await customSleep(200);
       setHitTarget(null);
       
       if (currentEnemyHp <= 0) {
-        await sleep(500);
-        addLog(`你击败了 ${enemy.name}！`);
-        await sleep(1500);
-        setGold(g => g + 20 + level * 10);
-        setLevel(l => l + 1);
-        refreshShop(true);
-        setGameState('planning');
-        return;
+        break;
       }
       
-      await sleep(400);
+      await customSleep(400);
       
       // Enemy attacks
       setAttacking('enemy');
-      await sleep(150);
+      await customSleep(150);
       
       const eBaseDamage = Math.max(1, enemy.attack - stats.defense);
       const eDamage = Math.floor(eBaseDamage * (0.6 + Math.random() * 0.4));
@@ -409,20 +486,31 @@ export default function App() {
       addLog(`${enemy.name} 对你造成了 ${eDamage} 点伤害！`);
       setPlayerHp(currentPlayerHp);
       
-      await sleep(150);
+      await customSleep(150);
       setAttacking(null);
-      await sleep(200);
+      await customSleep(200);
       setHitTarget(null);
       
       if (currentPlayerHp <= 0) {
-        await sleep(500);
-        addLog(`你被 ${enemy.name} 击败了...`);
-        await sleep(1500);
-        setGameState('gameover');
-        return;
+        break;
       }
       
-      await sleep(400);
+      await customSleep(400);
+    }
+
+    if (currentEnemyHp <= 0) {
+      if (!skipBattleRef.current) await customSleep(500);
+      addLog(`你击败了 ${enemy.name}！`);
+      if (!skipBattleRef.current) await customSleep(1500);
+      setGold(g => g + 20 + level * 10);
+      setLevel(l => l + 1);
+      refreshShop(true);
+      setGameState('planning');
+    } else if (currentPlayerHp <= 0) {
+      if (!skipBattleRef.current) await customSleep(500);
+      addLog(`你被 ${enemy.name} 击败了...`);
+      if (!skipBattleRef.current) await customSleep(1500);
+      setGameState('gameover');
     }
   };
 
@@ -458,6 +546,7 @@ export default function App() {
         ...style,
         position: 'relative',
         opacity: isDragging ? 0.3 : 1,
+        transform: source === 'shop' && !isGlobalDrag ? 'scale(0.75)' : 'none',
       };
     }
 
@@ -491,63 +580,64 @@ export default function App() {
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden border border-stone-200">
         
         {/* Header Stats */}
-        <div className="bg-stone-800 text-stone-100 p-4 flex justify-between items-center">
-          <div>
-            <h1 className="font-bold text-lg tracking-tight">收纳骑士</h1>
-            <p className="text-stone-400 text-xs">第 {level + 1} 关</p>
+        <div className="bg-gradient-to-r from-stone-900 to-stone-800 text-stone-100 p-5 flex justify-between items-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+          <div className="relative z-10">
+            <h1 className="font-black text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-stone-400">收纳骑士</h1>
+            <p className="text-stone-400 text-xs font-medium tracking-widest uppercase mt-0.5">第 {level + 1} 关</p>
           </div>
-          <div className="flex gap-3">
-            <div className="flex items-center gap-1 bg-stone-700 px-2 py-1 rounded-lg">
+          <div className="flex gap-3 relative z-10">
+            <div className="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-xl border border-white/10 shadow-inner">
               <Coins size={16} className="text-yellow-400" />
-              <span className="font-mono font-bold text-yellow-400">{gold}</span>
+              <span className="font-mono font-bold text-yellow-400 text-lg">{gold}</span>
             </div>
           </div>
         </div>
 
         {/* Player Stats Bar */}
-        <div className="grid grid-cols-4 divide-x divide-stone-200 border-b border-stone-200 bg-stone-50">
-          <div className="p-2 flex flex-col items-center justify-center">
-            <div className="flex items-center gap-1 text-red-500">
-              <Heart size={16} /> <span className="font-bold">{gameState === 'battling' ? playerHp : stats.maxHp}</span>
+        <div className="grid grid-cols-4 divide-x divide-stone-200/60 border-b border-stone-200/60 bg-stone-50/80 backdrop-blur-sm">
+          <div className="p-3 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-1.5 text-red-500 mb-0.5">
+              <Heart size={16} className="drop-shadow-sm" /> <span className="font-black text-lg">{gameState === 'battling' ? playerHp : stats.maxHp}</span>
             </div>
-            <span className="text-[10px] text-stone-500 uppercase tracking-wider">生命</span>
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">生命</span>
           </div>
-          <div className="p-2 flex flex-col items-center justify-center">
-            <div className="flex items-center gap-1 text-blue-600">
-              <Sword size={16} /> <span className="font-bold">{stats.attack}</span>
+          <div className="p-3 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-1.5 text-blue-600 mb-0.5">
+              <Sword size={16} className="drop-shadow-sm" /> <span className="font-black text-lg">{stats.attack}</span>
             </div>
-            <span className="text-[10px] text-stone-500 uppercase tracking-wider">攻击</span>
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">攻击</span>
           </div>
-          <div className="p-2 flex flex-col items-center justify-center">
-            <div className="flex items-center gap-1 text-amber-600">
-              <Shield size={16} /> <span className="font-bold">{stats.defense}</span>
+          <div className="p-3 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-1.5 text-amber-600 mb-0.5">
+              <Shield size={16} className="drop-shadow-sm" /> <span className="font-black text-lg">{stats.defense}</span>
             </div>
-            <span className="text-[10px] text-stone-500 uppercase tracking-wider">防御</span>
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">防御</span>
           </div>
-          <div className="p-2 flex flex-col items-center justify-center">
-            <div className="flex items-center gap-1 text-teal-600">
-              <span className="font-bold">{Math.round(stats.critChance * 100)}%</span>
+          <div className="p-3 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-1.5 text-teal-600 mb-0.5">
+              <span className="font-black text-lg">{Math.round(stats.critChance * 100)}%</span>
             </div>
-            <span className="text-[10px] text-stone-500 uppercase tracking-wider">暴击</span>
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">暴击</span>
           </div>
         </div>
 
         {gameState === 'planning' && (
           <div className="p-6 flex flex-col items-center bg-stone-100">
             {/* Backpack Grid */}
-            <div className="mb-4 relative">
+            <div className="mb-4 relative w-full flex flex-col items-center overflow-x-auto pb-2">
               <div 
                 ref={gridRef}
-                className="bg-stone-300 rounded-xl p-1 shadow-inner relative"
+                className="bg-stone-300 rounded-xl p-1 shadow-inner relative flex-shrink-0"
                 style={{
-                  width: GRID_COLS * STEP + CELL_GAP,
-                  height: GRID_ROWS * STEP + CELL_GAP,
+                  width: gridCols * STEP + CELL_GAP,
+                  height: gridRows * STEP + CELL_GAP,
                 }}
               >
                 {/* Grid Cells Background */}
-                {Array.from({ length: GRID_ROWS * GRID_COLS }).map((_, i) => {
-                  const x = i % GRID_COLS;
-                  const y = Math.floor(i / GRID_COLS);
+                {Array.from({ length: gridRows * gridCols }).map((_, i) => {
+                  const x = i % gridCols;
+                  const y = Math.floor(i / gridCols);
                   return (
                     <div
                       key={i}
@@ -601,62 +691,79 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <p className="text-center text-xs text-stone-400 mt-2">拖出背包出售(半价)</p>
+              <p className="w-full text-center text-xs text-stone-400 mt-2">拖出背包出售(半价)</p>
             </div>
 
             {/* Active Synergies */}
             {activeSynergies.length > 0 && (
-              <div className="w-full mb-4 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">激活的羁绊</h3>
-                <ul className="text-sm text-emerald-700 space-y-1">
-                  {activeSynergies.map((syn, i) => (
-                    <li key={i} className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      {syn}
-                    </li>
-                  ))}
+              <div className="w-full mb-4 bg-stone-50 border border-stone-200 rounded-lg p-3">
+                <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider mb-1">激活的羁绊</h3>
+                <ul className="text-sm space-y-1">
+                  {activeSynergies.map((syn, i) => {
+                    const isNegative = syn.includes('-');
+                    return (
+                      <li key={i} className={`flex items-center gap-1 ${isNegative ? 'text-red-700' : 'text-emerald-700'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isNegative ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                        {syn}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
 
             {/* Shop */}
-            <div className="w-full bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
+            <div className="w-full bg-white rounded-2xl border border-stone-200 p-4 shadow-md">
               <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-stone-700">商店</h3>
-                <button 
-                  onClick={() => refreshShop(false)}
-                  className="flex items-center gap-1 text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 px-2 py-1 rounded-md transition-colors"
-                >
-                  <RefreshCw size={12} /> 刷新 (5g)
-                </button>
+                <h3 className="font-black text-stone-800 text-lg">商店</h3>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleUpgradeGrid}
+                    disabled={gold < upgradeCost}
+                    className="flex items-center gap-1 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50 border border-blue-200"
+                  >
+                    扩充背包 ({upgradeCost}g)
+                  </button>
+                  <button 
+                    onClick={() => refreshShop(false)}
+                    className="flex items-center gap-1 text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 px-2 py-1.5 rounded-lg transition-colors border border-stone-200"
+                  >
+                    <RefreshCw size={12} /> 刷新 (5g)
+                  </button>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 min-h-[340px] content-start">
+              <div className="grid grid-cols-3 gap-2 min-h-[220px] content-start">
                 {shop.map(item => {
                   const def = ITEM_DEFS[item.itemId];
                   const isDragging = dragState?.instanceId === item.instanceId;
                   return (
                     <div key={item.instanceId} className={`relative flex flex-col items-center p-2 border border-stone-200 rounded-lg bg-stone-50 transition-opacity ${isDragging ? 'opacity-50' : ''}`}>
-                      {checkSynergyPotential(def, backpack) && (
-                        <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-yellow-500 shadow-sm animate-bounce z-10">
+                      {checkSynergyPotential(def, backpack) === 'positive' && (
+                        <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[8px] font-bold px-1 py-0.5 rounded-full border border-yellow-500 shadow-sm animate-bounce z-10">
                           ✨ 羁绊
                         </div>
                       )}
-                      <div className="font-bold text-xs mb-1 text-stone-700">{def.name}</div>
-                      <div className="flex-1 flex items-center justify-center min-h-[100px] w-full">
+                      {checkSynergyPotential(def, backpack) === 'negative' && (
+                        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full border border-red-700 shadow-sm animate-pulse z-10">
+                          ⚠️ 冲突
+                        </div>
+                      )}
+                      <div className="font-bold text-[10px] mb-0.5 text-stone-700 truncate w-full text-center">{def.name}</div>
+                      <div className="flex-1 flex items-center justify-center min-h-[60px] w-full -my-2">
                         {renderItem(item, 'shop')}
                       </div>
-                      <div className="text-[10px] text-stone-500 mt-1 text-center space-y-0.5 leading-tight">
-                        {def.stats.attack ? <div>+{def.stats.attack} 攻击</div> : null}
-                        {def.stats.defense ? <div>+{def.stats.defense} 防御</div> : null}
-                        {def.stats.maxHp ? <div>+{def.stats.maxHp} 生命</div> : null}
-                        {def.stats.critChance ? <div>+{Math.round(def.stats.critChance * 100)}% 暴击</div> : null}
-                        {def.synergies.map((s, i) => <div key={i} className="text-emerald-600 font-medium">{s.description}</div>)}
+                      <div className="text-[9px] text-stone-500 mt-1 text-center space-y-0.5 leading-tight">
+                        {def.stats.attack ? <div>+{def.stats.attack} 攻</div> : null}
+                        {def.stats.defense ? <div>+{def.stats.defense} 防</div> : null}
+                        {def.stats.maxHp ? <div>+{def.stats.maxHp} 血</div> : null}
+                        {def.stats.critChance ? <div>+{Math.round(def.stats.critChance * 100)}% 暴</div> : null}
+                        {def.synergies.map((s, i) => <div key={i} className={`font-medium ${s.description.includes('-') ? 'text-red-600' : 'text-emerald-600'}`}>{s.description}</div>)}
                       </div>
                     </div>
                   );
                 })}
                 {shop.length === 0 && (
-                  <div className="col-span-2 flex items-center justify-center text-stone-400 text-sm h-full min-h-[300px]">
+                  <div className="col-span-3 flex items-center justify-center text-stone-400 text-sm h-full min-h-[200px]">
                     售罄！请刷新。
                   </div>
                 )}
@@ -666,9 +773,9 @@ export default function App() {
             <button
               onClick={startBattle}
               disabled={backpack.length === 0}
-              className="mt-6 w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:active:scale-100 bg-stone-800 text-white hover:bg-stone-700"
+              className="mt-6 w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 disabled:opacity-50 disabled:active:scale-100 bg-gradient-to-r from-stone-800 to-stone-900 text-white hover:from-stone-700 hover:to-stone-800 border border-stone-700"
             >
-              <Play size={20} /> 开始战斗
+              <Play size={20} className="fill-current" /> 开始战斗
             </button>
           </div>
         )}
@@ -676,6 +783,30 @@ export default function App() {
         {gameState === 'battling' && currentEnemy && (
           <div className="p-6 flex flex-col items-center bg-stone-900 text-stone-100 min-h-[450px]">
             
+            {/* Battle Controls */}
+            <div className="w-full flex justify-between items-center mb-4">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setBattleSpeed(1)} 
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${battleSpeed === 1 ? 'bg-stone-200 text-stone-800' : 'bg-stone-800 text-stone-400 border border-stone-700 hover:bg-stone-700'}`}
+                >
+                  1x 速度
+                </button>
+                <button 
+                  onClick={() => setBattleSpeed(2)} 
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${battleSpeed === 2 ? 'bg-stone-200 text-stone-800' : 'bg-stone-800 text-stone-400 border border-stone-700 hover:bg-stone-700'}`}
+                >
+                  2x 速度
+                </button>
+              </div>
+              <button 
+                onClick={() => { skipBattleRef.current = true; }} 
+                className="px-3 py-1 rounded-md text-xs font-bold bg-stone-800 text-stone-300 border border-stone-700 hover:bg-stone-700 transition-colors"
+              >
+                跳过战斗 ⏭
+              </button>
+            </div>
+
             {/* Battle Arena */}
             <div className="relative w-full h-64 bg-stone-800 rounded-2xl mb-6 overflow-hidden border-4 border-stone-700 shadow-2xl flex items-center justify-between px-8">
               {/* Background decoration */}

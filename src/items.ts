@@ -2,7 +2,7 @@ export type Shape = number[][];
 
 export interface Synergy {
   targetTag: string;
-  direction: 'adjacent'; // Keep it simple for MVP
+  direction: 'adjacent' | 'global' | 'diagonal';
   bonus: {
     attack?: number;
     defense?: number;
@@ -288,6 +288,285 @@ export const ITEM_DEFS: Record<string, ItemDef> = {
     color: 'bg-indigo-400 border-indigo-600 text-white',
     icon: '🪄',
     price: 56
+  },
+
+  // --- Fire Items ---
+  fire_wand_1: {
+    id: 'fire_wand_1',
+    name: '烈焰法杖',
+    level: 1,
+    nextLevelId: 'fire_wand_2',
+    shape: [[1], [1]],
+    tags: ['weapon', 'magic', 'fire'],
+    stats: { attack: 15 },
+    synergies: [
+      { targetTag: 'fire', direction: 'global', bonus: { attack: 10 }, description: '全局火焰: +10 攻击力' }
+    ],
+    color: 'bg-orange-200 border-orange-400 text-orange-800',
+    icon: '🔥',
+    price: 20
+  },
+  fire_wand_2: {
+    id: 'fire_wand_2',
+    name: '爆裂法杖',
+    level: 2,
+    nextLevelId: 'fire_wand_3',
+    shape: [[1], [1]],
+    tags: ['weapon', 'magic', 'fire'],
+    stats: { attack: 35 },
+    synergies: [
+      { targetTag: 'fire', direction: 'global', bonus: { attack: 25 }, description: '全局火焰: +25 攻击力' }
+    ],
+    color: 'bg-orange-300 border-orange-500 text-orange-900',
+    icon: '🔥',
+    price: 40
+  },
+  fire_wand_3: {
+    id: 'fire_wand_3',
+    name: '陨石法杖',
+    level: 3,
+    shape: [[1], [1]],
+    tags: ['weapon', 'magic', 'fire'],
+    stats: { attack: 80 },
+    synergies: [
+      { targetTag: 'fire', direction: 'global', bonus: { attack: 60 }, description: '全局火焰: +60 攻击力' }
+    ],
+    color: 'bg-orange-400 border-orange-600 text-white',
+    icon: '🔥',
+    price: 80
+  },
+
+  // --- Ice Items ---
+  ice_shield_1: {
+    id: 'ice_shield_1',
+    name: '冰霜之盾',
+    level: 1,
+    nextLevelId: 'ice_shield_2',
+    shape: [[1, 1], [1, 1]],
+    tags: ['armor', 'shield', 'ice'],
+    stats: { defense: 8 },
+    synergies: [
+      { targetTag: 'ice', direction: 'adjacent', bonus: { defense: 5, maxHp: 20 }, description: '相邻冰霜: +5 防御, +20 生命' }
+    ],
+    color: 'bg-cyan-200 border-cyan-400 text-cyan-800',
+    icon: '❄️',
+    price: 20
+  },
+  ice_shield_2: {
+    id: 'ice_shield_2',
+    name: '极寒之盾',
+    level: 2,
+    nextLevelId: 'ice_shield_3',
+    shape: [[1, 1], [1, 1]],
+    tags: ['armor', 'shield', 'ice'],
+    stats: { defense: 18 },
+    synergies: [
+      { targetTag: 'ice', direction: 'adjacent', bonus: { defense: 12, maxHp: 50 }, description: '相邻冰霜: +12 防御, +50 生命' }
+    ],
+    color: 'bg-cyan-300 border-cyan-500 text-cyan-900',
+    icon: '❄️',
+    price: 40
+  },
+  ice_shield_3: {
+    id: 'ice_shield_3',
+    name: '绝对零度',
+    level: 3,
+    shape: [[1, 1], [1, 1]],
+    tags: ['armor', 'shield', 'ice'],
+    stats: { defense: 40 },
+    synergies: [
+      { targetTag: 'ice', direction: 'adjacent', bonus: { defense: 30, maxHp: 120 }, description: '相邻冰霜: +30 防御, +120 生命' }
+    ],
+    color: 'bg-cyan-400 border-cyan-600 text-white',
+    icon: '❄️',
+    price: 80
+  },
+
+  // --- Food Items ---
+  meat_1: {
+    id: 'meat_1',
+    name: '烤肉',
+    level: 1,
+    nextLevelId: 'meat_2',
+    shape: [[1, 1]],
+    tags: ['consumable', 'food'],
+    stats: { maxHp: 30 },
+    synergies: [
+      { targetTag: 'food', direction: 'adjacent', bonus: { maxHp: 20 }, description: '相邻食物: +20 生命' }
+    ],
+    color: 'bg-rose-200 border-rose-400 text-rose-800',
+    icon: '🍖',
+    price: 10
+  },
+  meat_2: {
+    id: 'meat_2',
+    name: '大块烤肉',
+    level: 2,
+    nextLevelId: 'meat_3',
+    shape: [[1, 1]],
+    tags: ['consumable', 'food'],
+    stats: { maxHp: 70 },
+    synergies: [
+      { targetTag: 'food', direction: 'adjacent', bonus: { maxHp: 50 }, description: '相邻食物: +50 生命' }
+    ],
+    color: 'bg-rose-300 border-rose-500 text-rose-900',
+    icon: '🍖',
+    price: 20
+  },
+  meat_3: {
+    id: 'meat_3',
+    name: '龙肉排',
+    level: 3,
+    shape: [[1, 1]],
+    tags: ['consumable', 'food'],
+    stats: { maxHp: 160 },
+    synergies: [
+      { targetTag: 'food', direction: 'adjacent', bonus: { maxHp: 120 }, description: '相邻食物: +120 生命' }
+    ],
+    color: 'bg-rose-400 border-rose-600 text-white',
+    icon: '🍖',
+    price: 40
+  },
+
+  // --- Dark Items ---
+  cursed_blade_1: {
+    id: 'cursed_blade_1',
+    name: '诅咒之刃',
+    level: 1,
+    nextLevelId: 'cursed_blade_2',
+    shape: [[1], [1], [1]],
+    tags: ['weapon', 'sword', 'dark'],
+    stats: { attack: 40 },
+    synergies: [
+      { targetTag: 'holy', direction: 'global', bonus: { attack: -20 }, description: '全局神圣: -20 攻击力' }
+    ],
+    color: 'bg-fuchsia-200 border-fuchsia-400 text-fuchsia-800',
+    icon: '🗡️',
+    price: 25
+  },
+  cursed_blade_2: {
+    id: 'cursed_blade_2',
+    name: '魔剑',
+    level: 2,
+    nextLevelId: 'cursed_blade_3',
+    shape: [[1], [1], [1]],
+    tags: ['weapon', 'sword', 'dark'],
+    stats: { attack: 90 },
+    synergies: [
+      { targetTag: 'holy', direction: 'global', bonus: { attack: -45 }, description: '全局神圣: -45 攻击力' }
+    ],
+    color: 'bg-fuchsia-300 border-fuchsia-500 text-fuchsia-900',
+    icon: '🗡️',
+    price: 50
+  },
+  cursed_blade_3: {
+    id: 'cursed_blade_3',
+    name: '灾厄之刃',
+    level: 3,
+    shape: [[1], [1], [1]],
+    tags: ['weapon', 'sword', 'dark'],
+    stats: { attack: 200 },
+    synergies: [
+      { targetTag: 'holy', direction: 'global', bonus: { attack: -100 }, description: '全局神圣: -100 攻击力' }
+    ],
+    color: 'bg-fuchsia-400 border-fuchsia-600 text-white',
+    icon: '🗡️',
+    price: 100
+  },
+
+  // --- Holy Items ---
+  holy_cross_1: {
+    id: 'holy_cross_1',
+    name: '神圣十字架',
+    level: 1,
+    nextLevelId: 'holy_cross_2',
+    shape: [[0, 1, 0], [1, 1, 1], [0, 1, 0]],
+    tags: ['accessory', 'holy'],
+    stats: { maxHp: 50 },
+    synergies: [
+      { targetTag: 'dark', direction: 'global', bonus: { defense: 10 }, description: '全局黑暗: +10 防御力' }
+    ],
+    color: 'bg-yellow-200 border-yellow-400 text-yellow-800',
+    icon: '✝️',
+    price: 30
+  },
+  holy_cross_2: {
+    id: 'holy_cross_2',
+    name: '白银十字架',
+    level: 2,
+    nextLevelId: 'holy_cross_3',
+    shape: [[0, 1, 0], [1, 1, 1], [0, 1, 0]],
+    tags: ['accessory', 'holy'],
+    stats: { maxHp: 120 },
+    synergies: [
+      { targetTag: 'dark', direction: 'global', bonus: { defense: 25 }, description: '全局黑暗: +25 防御力' }
+    ],
+    color: 'bg-yellow-300 border-yellow-500 text-yellow-900',
+    icon: '✝️',
+    price: 60
+  },
+  holy_cross_3: {
+    id: 'holy_cross_3',
+    name: '救赎十字架',
+    level: 3,
+    shape: [[0, 1, 0], [1, 1, 1], [0, 1, 0]],
+    tags: ['accessory', 'holy'],
+    stats: { maxHp: 300 },
+    synergies: [
+      { targetTag: 'dark', direction: 'global', bonus: { defense: 60 }, description: '全局黑暗: +60 防御力' }
+    ],
+    color: 'bg-yellow-400 border-yellow-600 text-white',
+    icon: '✝️',
+    price: 120
+  },
+
+  // --- Crowns (Diagonal Synergy) ---
+  crown_1: {
+    id: 'crown_1',
+    name: '王者之冠',
+    level: 1,
+    nextLevelId: 'crown_2',
+    shape: [[1, 1]],
+    tags: ['accessory'],
+    stats: {},
+    synergies: [
+      { targetTag: 'weapon', direction: 'diagonal', bonus: { critChance: 0.1 }, description: '对角武器: +10% 暴击' },
+      { targetTag: 'armor', direction: 'diagonal', bonus: { maxHp: 50 }, description: '对角防具: +50 生命' }
+    ],
+    color: 'bg-amber-200 border-amber-400 text-amber-800',
+    icon: '👑',
+    price: 35
+  },
+  crown_2: {
+    id: 'crown_2',
+    name: '霸者之冠',
+    level: 2,
+    nextLevelId: 'crown_3',
+    shape: [[1, 1]],
+    tags: ['accessory'],
+    stats: {},
+    synergies: [
+      { targetTag: 'weapon', direction: 'diagonal', bonus: { critChance: 0.2 }, description: '对角武器: +20% 暴击' },
+      { targetTag: 'armor', direction: 'diagonal', bonus: { maxHp: 120 }, description: '对角防具: +120 生命' }
+    ],
+    color: 'bg-amber-300 border-amber-500 text-amber-900',
+    icon: '👑',
+    price: 70
+  },
+  crown_3: {
+    id: 'crown_3',
+    name: '神明之冠',
+    level: 3,
+    shape: [[1, 1]],
+    tags: ['accessory'],
+    stats: {},
+    synergies: [
+      { targetTag: 'weapon', direction: 'diagonal', bonus: { critChance: 0.4 }, description: '对角武器: +40% 暴击' },
+      { targetTag: 'armor', direction: 'diagonal', bonus: { maxHp: 300 }, description: '对角防具: +300 生命' }
+    ],
+    color: 'bg-amber-400 border-amber-600 text-white',
+    icon: '👑',
+    price: 140
   },
 
   // --- Poisons ---

@@ -50,6 +50,19 @@ export function isAdjacent(cells1: {x: number, y: number}[], cells2: {x: number,
   return false;
 }
 
+export function isDiagonal(cells1: {x: number, y: number}[], cells2: {x: number, y: number}[]) {
+  for (const c1 of cells1) {
+    for (const c2 of cells2) {
+      const dx = Math.abs(c1.x - c2.x);
+      const dy = Math.abs(c1.y - c2.y);
+      if (dx === 1 && dy === 1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function calculateStats(backpack: ItemInstance[]): { stats: PlayerStats, activeSynergies: string[], hasMagic: boolean } {
   const baseStats: PlayerStats = { attack: 5, defense: 0, maxHp: 100, critChance: 0 };
   const activeSynergies: string[] = [];
@@ -81,6 +94,12 @@ export function calculateStats(backpack: ItemInstance[]): { stats: PlayerStats, 
         if (def2.tags.includes(synergy.targetTag)) {
           const cells2 = getOccupiedCells(item2, def2);
           if (synergy.direction === 'adjacent' && isAdjacent(cells1, cells2)) {
+            synergyActive = true;
+            break;
+          } else if (synergy.direction === 'diagonal' && isDiagonal(cells1, cells2)) {
+            synergyActive = true;
+            break;
+          } else if (synergy.direction === 'global') {
             synergyActive = true;
             break;
           }
