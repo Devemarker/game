@@ -34,15 +34,25 @@
 - 🍖 **暴食流**：烤肉系列。提供巨额生命值上限。
 - ✝️/🗡️ **神圣与黑暗**：互相排斥的两个流派。黑暗武器攻击力极高但排斥神圣；神圣物品在面对黑暗时能提供强大的防御加成。
 
-## 🛠️ 技术栈
+## 🛠️ 技术栈与 Cocos Creator 迁移
 
-- **前端框架**: React 18
-- **样式**: Tailwind CSS
-- **图标**: Lucide React
-- **构建工具**: Vite
-- **语言**: TypeScript
+本项目原生基于 **React 18 + Tailwind CSS** 开发。
 
-## 🚀 如何运行
+### 🎮 Cocos Creator 3.x 移植指南
+为了方便将核心业务逻辑移植到 **Cocos Creator 3.x** 游戏引擎中，我们在项目根目录下提供了 `cocos_scripts/` 文件夹。该文件夹包含了完全脱离 React 依赖的纯 TypeScript 核心逻辑，并封装为了 Cocos 的 `cc.Component`。
+
+1. **获取代码**：将本项目中 `cocos_scripts/` 目录下的所有 `.ts` 文件复制到你的 Cocos Creator 项目的 `assets/Scripts/` 目录下。
+2. **核心文件说明**：
+   - `Items.ts`: 物品数据定义（移除了 Tailwind 样式，替换为了 `colorHex` 颜色值）。
+   - `Engine.ts`: 核心算法引擎（包含网格碰撞检测、羁绊计算、属性加成等纯逻辑）。
+   - `GameManager.ts`: 游戏主控制器（继承自 `Component`，负责管理金币、商店刷新、背包状态，并提供了 `tryPlaceItem` 等接口）。
+   - `DraggableItem.ts`: 拖拽组件（继承自 `Component`，监听了 Cocos 的 `TOUCH_START/MOVE/END` 事件，处理物品的拖拽与吸附）。
+3. **在 Cocos 中使用**：
+   - 在场景中创建一个空节点命名为 `GameManager`，挂载 `GameManager.ts` 脚本。
+   - 将 UI 节点（如金币 Label、网格容器 Node）拖拽绑定到 `GameManager` 的 `@property` 上。
+   - 制作一个物品预制体（Prefab），挂载 `DraggableItem.ts` 脚本，并在 `GameManager` 中引用该预制体。
+
+## 🚀 如何运行 (Web 版本)
 
 1. 安装依赖:
    ```bash
